@@ -163,7 +163,7 @@ func gitRevParse(git_dir, ref string) (sha string, err error) {
 }
 
 func gitDescribe(git_dir, ref string) (desc string, err error) {
-	cmd := Command(git_dir, "git", "rev-parse", ref)
+	cmd := Command(git_dir, "git", "describe", "--all", "--tags", "--long", ref)
 	cmd.Stdout = nil // for cmd.Output
 
 	var stdout []byte
