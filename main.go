@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -12,14 +11,21 @@ import (
 	"time"
 )
 
-func dockerBuild(checkoutPath, name string) error {
-	cmd := Command(checkoutPath, "docker", "build", "--tag", name, ".")
+func dockerBuild(checkoutPath, name, tag string) error {
+	repository := fmt.Sprintf("%s:%s", name, tag)
+	cmd := Command(checkoutPath, "docker", "build", "--tag", repository, ".")
 	return cmd.Run()
 }
 
 func dockerSave(name string, w io.Writer) error {
 	cmd := Command(".", "docker", "save", name)
 	cmd.Stdout = w
+	return cmd.Run()
+}
+
+func dockerPush(name, tag string) error {
+	repository := fmt.Sprintf("%s:%s", name, tag)
+	cmd := Command(".", "docker", "push", repository)
 	return cmd.Run()
 }
 
@@ -50,8 +56,6 @@ func main() {
 
 		shortRev := rev[:10]
 
-		fmt.Fprintln(w, "Here:", rev)
-
 		checkoutPath := "c/" + shortRev
 
 		err = gitCheckout(path, checkoutPath, rev)
@@ -60,21 +64,37 @@ func main() {
 			return
 		}
 
+		tagName, err := gitDescribe(path, rev)
+		if err != nil {
+			log.Printf("Unable to describe %v: %v", rev, err)
+			return
+		}
+
 		log.Println("Checked out")
 
-		dockerImage := name + "-" + shortRev
+		// dockerImage := name + "-" + shortRev
 
-		err = dockerBuild(path+"/"+checkoutPath, dockerImage)
+		repoName := "localhost.localdomain:5000/" + name
+
+		err = dockerBuild(path+"/"+checkoutPath, repoName, tagName)
 		if err != nil {
 			log.Printf("Failed to build: %v", err)
 		}
 
-		var buf bytes.Buffer
-
 		start := time.Now()
-		dockerSave(dockerImage, &buf)
-		log.Printf("Took %v to save %v bytes", time.Since(start), buf.Len())
+		err = dockerPush(repoName, tagName)
+		log.Printf("Took %v to push", time.Since(start))
 
+		if err != nil {
+			log.Printf("Failed to push: %v", err)
+		}
+
+		// var buf bytes.Buffer
+		// start := time.Now()
+		// dockerSave(dockerImage, &buf)
+		// log.Printf("Took %v to save %v bytes", time.Since(start), buf.Len())
+
+		fmt.Fprintln(w, "Success:", rev)
 	})
 
 	http.HandleFunc("/ws/", serveWs)

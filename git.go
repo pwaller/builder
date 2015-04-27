@@ -162,6 +162,20 @@ func gitRevParse(git_dir, ref string) (sha string, err error) {
 	return
 }
 
+func gitDescribe(git_dir, ref string) (desc string, err error) {
+	cmd := Command(git_dir, "git", "rev-parse", ref)
+	cmd.Stdout = nil // for cmd.Output
+
+	var stdout []byte
+	stdout, err = cmd.Output()
+	if err != nil {
+		return
+	}
+
+	desc = strings.TrimSpace(string(stdout))
+	return
+}
+
 func gitCheckout(git_dir, checkout_dir, ref string) error {
 
 	err := os.MkdirAll(path.Join(git_dir, checkout_dir), 0777)
