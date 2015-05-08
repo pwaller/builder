@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 const GIT_BASE_DIR = "repo"
@@ -203,6 +205,15 @@ func gitCheckout(git_dir, checkout_dir, ref string) error {
 	return nil
 }
 
+// Set the (a|m)time on `path` without following symlinks
+func lutimes(path string, atime, mtime time.Time) error {
+	times := []unix.Timespec{
+		unix.NsecToTimespec(atime.UnixNano()),
+		unix.NsecToTimespec(mtime.UnixNano()),
+	}
+	return unix.UtimesNanoAt(unix.AT_FDCWD, path, times, unix.AT_SYMLINK_NOFOLLOW)
+}
+
 func gitSetMTimes(git_dir, checkout_dir string) error {
 	// From https://github.com/rosylilly/git-set-mtime with tweaks
 	// Copyright (c) 2014 Sho Kusano
@@ -275,7 +286,7 @@ func gitSetMTimes(git_dir, checkout_dir string) error {
 			dir = filepath.Dir(dir)
 		}
 
-		err = os.Chtimes(checkout_dir+"/"+file, mTime, mTime)
+		err = lutimes(checkout_dir+"/"+file, mTime, mTime)
 		if err != nil {
 			return fmt.Errorf("chtimes: %v", err)
 		}
@@ -284,7 +295,7 @@ func gitSetMTimes(git_dir, checkout_dir string) error {
 	}
 
 	for dir, mTime := range dirMTimes {
-		err = os.Chtimes(checkout_dir+"/"+dir, mTime, mTime)
+		err = lutimes(checkout_dir+"/"+dir, mTime, mTime)
 		if err != nil {
 			return fmt.Errorf("chtimes: %v", err)
 		}
